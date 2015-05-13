@@ -5,21 +5,114 @@ output:
     keep_md: true
 ---
 
+Loading and preprocessing the data
 
-## Loading and preprocessing the data
+```{r}
+setwd("~/Documents/coursera/PA1_template")
+data <- read.csv("./activity.csv", na.strings = "NA")
+```
 
+Transform the column date into a date.
 
+```{r}
+data$date <- as.Date(data$date, format = "%Y-%m-%d")
+data$steps <- as.numeric(data$steps)
+data$interval <- as.numeric(data$interval)
+```
 
-## What is mean total number of steps taken per day?
+##What is the mean total number of steps taken per day?
+using the plyr package and the ggplot2 package
 
+```{r}
+library(plyr)
+z <- ddply(data, ~date, summarise, sum=sum(steps))
+library(ggplot2)
+ggplot(z, aes(x=date,y=sum)) + 
+        geom_histogram(binwidth=.5, colour="black", fill="white") + 
+        geom_bar(stat="identity") +
+        xlab("date") +
+        ylab("total number of steps") +
+        ggtitle("total numbers of steps per day")
+```
 
+report the mean and median of the total number of steps taken per day
+```{r}
+x <- ddply(data, ~date, summarise, meanSteps=mean(steps), medianSteps=median(steps))
+print(x)
+```
 
 ## What is the average daily activity pattern?
+Plotting a 5-minute interval steps vs the averaged number of steps taken across all days.
 
+```{r}
+    plot(data$date, data$steps, ylab="steps", xlab="date", type = "l")
+        lines(x$date, x$meanSteps, col = "red")
+        legend("topright", lty = 1:1 , col = c("black","red"), legend = c("5-minute interval","average per day"))
+```
 
+Find out which interval is containing on average the maximun number of steps
+
+```{r}
+DataMeanInterval <- ddply(data, ~interval, summarise, meanSteps=mean(steps, na.rm = TRUE))
+        maxSteps <- max(DataMeanInterval[,2])        
+        q <- DataMeanInterval$meanSteps == maxSteps
+        IntervalMaximalNumberOfSteps <- DataMeanInterval[q,1]
+        IntervalMaximalNumberOfSteps <- IntervalMaximalNumberOfSteps[!is.na(IntervalMaximalNumberOfSteps)]
+print(IntervalMaximalNumberOfSteps)
+```
 
 ## Imputing missing values
+To find the number of missing values in the dataset we will use the is.na function in combination with the sum function
 
+```{r}
+sum(is.na(data))
+```
 
+Create a new dataset where we're going to fill in the missing values of the dataset with the average of the mean of the 5 minutes interval
+```{r}
+dataNoNA <- data
+n = 17568
+for (i in 1:n) {
+        if(is.na(dataNoNA[i,1]) == "TRUE") {
+        z <- dataNoNA[i, 3]
+        step <- DataMeanInterval$interval == z
+        step <- DataMeanInterval[step,2]
+        step <- step[!is.na(step)]
+        dataNoNA[i,1] <- step
+}
+}
+
+```
+
+The histogram&mean and median are changing when there are no missing values present.
+
+```{r}
+z2 <- ddply(dataNoNA, ~date, summarise, sum=sum(steps))
+ggplot(z2, aes(x=date,y=sum)) + 
+        geom_histogram(binwidth=.5, colour="black", fill="white") + 
+        geom_bar(stat="identity") +
+        xlab("date") +
+        ylab("total number of steps") +
+        ggtitle("total numbers of steps per day")
+
+x <- ddply(dataNoNA, ~date, summarise, meanSteps=mean(steps), medianSteps=median(steps))
+print(x)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+create a newcolumn called wDay
+
+``` {r}
+weekdays1 <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+dataNoNA$wDay <-  factor((weekdays(dataNoNA$date) %in% weekdays1)+1L,
+      levels=1:2, labels=c('weekend', 'weekday'))
+```
+
+panel plot
+
+```{r}
+z3 <- ddply(dataNoNA, .(interval,wDay), summarise, mean=mean(steps))
+library(lattice)
+xyplot(mean~interval | factor(wDay), data=z3, pch=19,
+                xlab="interval",  ylab="Number of Steps",layout=c(1,2),type="l")
+```
